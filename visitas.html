@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Orden de Trabajo Catastral - FINAL</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #333; }
+        .page {
+            width: 8.5in;
+            min-height: 11in;
+            margin: 0 auto;
+            padding: 0.5in;
+            box-sizing: border-box;
+            background: white;
+            border: 1px solid #ccc;
+        }
+        .header-container { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        .logo-box { width: 100px; height: 100px; border: 1px solid #ddd; text-align: center; line-height: 100px; font-size: 0.7rem; color: #777; }
+        .title-area { flex-grow: 1; text-align: center; padding: 0 15px; }
+        h1 { font-size: 1.3rem; margin: 5px 0; border-bottom: 2px solid #a83a6f; padding-bottom: 5px; color: #a83a6f; }
+        h2 { font-size: 1rem; margin: 0 0 5px 0; color: #333; }
+        
+        .row-container { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        .col-half { flex: 1; min-width: 45%; }
+        
+        .field-group { margin-bottom: 5px; }
+        .field-group label { display: block; font-weight: bold; margin-bottom: 3px; font-size: 0.8rem; }
+        
+        input[type="text"], input[type="number"], select, textarea {
+            width: 100%;
+            padding: 4px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 0.85rem;
+        }
+
+        /* Estilos del mapa y botones de acción */
+        #map { height: 180px; border-radius: 4px; margin-top: 5px; }
+        .action-container { margin-top: 10px; margin-bottom: 10px; display: flex; gap: 8px; justify-content: flex-start; }
+        .action-container button, .map-actions button { 
+            padding: 6px 10px; border: none; border-radius: 4px; cursor: pointer; 
+            background: #a83a6f; color: white; font-weight: 600; font-size: 0.85rem; 
+        }
+        .action-container button.secondary, .map-actions button.secondary { background: #555; }
+        
+        .drawing-area { border: 1px dashed #ccc; height: 160px; padding: 5px; margin-top: 5px; }
+        #qrcode { 
+            width: 100px; height: 100px; 
+            border: 1px dashed #333; 
+            text-align: center; 
+            margin-left: auto;
+            display: flex; /* Para centrar el QR generado */
+            align-items: center;
+            justify-content: center;
+            overflow: hidden; /* Importante para que el canvas se ajuste */
+        }
+        
+        .signatures { margin-top: 20px; display: flex; justify-content: space-around; text-align: center; border-top: 1px solid #ccc; padding-top: 15px; }
+        .signature-box { width: 22%; }
+        .signature-line { border-bottom: 1px solid #333; height: 1px; margin-bottom: 5px; }
+        .signature-label { font-size: 0.75rem; font-style: italic; }
+
+        /* Estilos de impresión */
+        @media print {
+            .page { border: none; margin: 0; padding: 0.5in; width: 100%; height: 100%; page-break-after: always; }
+            .action-container, .map-actions { display: none; }
+            input, select, textarea {
+                border: none !important;
+                border-bottom: 1px dotted #333 !important;
+                padding: 0 0 2px 0 !important;
+                background-color: transparent !important;
+            }
+            #map { height: 150px !important; }
+            .drawing-area, #qrcode { border: 1px dashed #333 !important; }
+            .logo-box { border: none; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    
+    <div class="header-container">
+        <div class="logo-box">LOGO MUNICIPAL</div>
+        <div class="title-area">
+            <h1>COORDINACIÓN DE CATASTRO</h1>
+            <h2>ORDEN DE TRABAJO</h2>
+        </div>
+        <div class="logo-box">LOGO CATASTRAL</div>
+    </div>
+
+    <div class="row-container">
+        <div class="field-group" style="flex: 1 1 50%;">
+            <label for="nombre">Nombre / Solicitante</label>
+            <input id="nombre" type="text" placeholder="Nombre del propietario o solicitante">
+        </div>
+        <div class="field-group" style="flex: 1 1 30%;">
+            <label for="tramite">Trámite</label>
+            <select id="tramite">
+                <option value="">-- Selecciona --</option>
+                <option>Certificado de clave y valor</option>
+                <option>Traslado de dominio</option>
+                <option>Actualización catastral</option>
+            </select>
+        </div>
+        <div class="field-group" style="flex: 0 0 15%;">
+            <label for="fecha" style="font-weight: bold;">FECHA:</label>
+            <input id="fecha" type="text" value="" readonly>
+        </div>
+    </div>
+
+    <div class="row-container">
+        <div class="field-group col-half">
+            <label for="colonia">Colonia y/o Pueblo</label>
+            <input id="colonia" type="text" placeholder="Colonia o Pueblo">
+        </div>
+        <div class="field-group col-half">
+            <label for="direccion">Dirección / Calle (Opcional)</label>
+            <input id="direccion" type="text" placeholder="Calle, número, referencia">
+        </div>
+    </div>
+    
+    <div class="row-container">
+        <div class="field-group" style="flex: 1 1 30%;">
+            <label for="clave">Clave Catastral</label>
+            <input id="clave" type="text" placeholder="Ej: 000-000-000">
+        </div>
+        <div class="field-group" style="flex: 1 1 30%;">
+            <label for="folio">Folio Catastral</label>
+            <input id="folio" type="text" placeholder="Folio">
+        </div>
+        <div class="field-group" style="flex: 1 1 30%;">
+            <label for="usoSuelo">Uso de Suelo (P.M.D.U.)</label>
+            <select id="usoSuelo">
+                <option value="">-- Selecciona --</option>
+                <option>Habitacional</option>
+                <option>Comercial</option>
+                <option>Mixto</option>
+            </select>
+        </div>
+    </div>
+
+    <hr style="border: 0; border-top: 1px dashed #ccc; margin: 10px 0;">
+
+    <div class="row-container">
+        <div class="col-half">
+            <h2>LOCALIZACIÓN DEL INMUEBLE (Mapa)</h2>
+            <div id="map"></div>
+            <div class="map-actions">
+                <button id="useLocation">Usar ubicación actual</button>
+                <button class="secondary" id="clearMarker">Limpiar ubicación</button>
+            </div>
+            <div class="row-container" style="margin-top: 5px;">
+                <div class="field-group col-half">
+                    <label for="lat">Latitud (DD)</label>
+                    <input id="lat" type="number" step="0.000001" placeholder="19.xxxxxx">
+                </div>
+                <div class="field-group col-half">
+                    <label for="lon">Longitud (DD)</label>
+                    <input id="lon" type="number" step="0.000001" placeholder="-98.xxxxxx">
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-half">
+            <h2>CROQUIS / COLINDANCIAS / MEDIDAS</h2>
+            <div class="field-group">
+                <label>Descripción de Medidas y Colindancias</label>
+                <textarea id="colindancias" rows="3" placeholder="Norte: 20m, Sur: 21m, etc."></textarea>
+            </div>
+            <label>Área de Dibujo del Predio (Cuadrícula)</label>
+            <div class="drawing-area">
+                </div>
+        </div>
+    </div>
+
+    <hr style="border: 0; border-top: 1px dashed #ccc; margin: 10px 0;">
+
+    <div class="row-container">
+        <div class="field-group" style="flex: 1 1 20%;">
+            <label for="superficie">Superficie Terreno (m²)</label>
+            <input id="superficie" type="number" step="0.01" placeholder="0.00">
+        </div>
+        <div class="field-group" style="flex: 1 1 20%;">
+            <label for="superConstruccion">Superficie Construcción (m²)</label>
+            <input id="superConstruccion" type="number" step="0.01" placeholder="0.00">
+        </div>
+        <div class="field-group" style="flex: 1 1 20%;">
+            <label for="topografia">Topografía</label>
+            <select id="topografia">
+                <option value="">-- Selecciona --</option>
+                <option>A nivel</option>
+                <option>Inclinado</option>
+                <option>Accidentado</option>
+            </select>
+        </div>
+        <div class="field-group" style="flex: 1 1 20%;">
+            <label for="estado">Estado Conservación</label>
+            <select id="estado">
+                <option value="">-- Selecciona --</option>
+                <option>Bueno</option>
+                <option>Regular</option>
+                <option>Malo</option>
+            </select>
+        </div>
+        <div class="field-group" style="flex: 1 1 10%;">
+            <label for="añoConstruccion">Año</label>
+            <input id="añoConstruccion" type="number" step="1" placeholder="YYYY">
+        </div>
+    </div>
+
+    <div class="row-container">
+        <div class="field-group" style="flex: 1 1 80%;">
+            <label for="observaciones">OBSERVACIONES</label>
+            <textarea id="observaciones" rows="2" placeholder="Notas adicionales sobre el levantamiento."></textarea>
+            <div class="action-container">
+                <button id="exportCsv">Exportar a CSV (Excel)</button>
+                <button id="generateQr">Generar Código QR</button>
+            </div>
+        </div>
+        <div class="field-group" style="flex: 0 0 15%;">
+            <label>Código QR</label>
+            <div id="qrcode"></div>
+        </div>
+    </div>
+    
+    <div class="signatures">
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div class="signature-label">ELABORÓ</div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div class="signature-label">FIRMA DE CONFORMIDAD (Solicitante)</div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div class="signature-label">AUTORIZÓ CARTOGRAFÍA</div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div class="signature-label">AUTORIZÓ EXPEDIENTE</div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/qrcode-generator/qrcode.js"></script>
+
+<script>
+    // 1. FUNCIONALIDAD DE EXPORTACIÓN Y QR (gatherData)
+    function gatherData(){
+        return {
+            fecha: document.getElementById('fecha').value,
+            nombre: document.getElementById('nombre').value,
+            tramite: document.getElementById('tramite').value,
+            colonia: document.getElementById('colonia').value,
+            direccion: document.getElementById('direccion').value,
+            clave: document.getElementById('clave').value,
+            folio: document.getElementById('folio').value,
+            usoSuelo: document.getElementById('usoSuelo').value,
+            lat: document.getElementById('lat').value,
+            lon: document.getElementById('lon').value,
+            colindancias: document.getElementById('colindancias').value,
+            superficie_terreno: document.getElementById('superficie').value,
+            superficie_construccion: document.getElementById('superConstruccion').value,
+            topografia: document.getElementById('topografia').value,
+            estado_conservacion: document.getElementById('estado').value,
+            año_construccion: document.getElementById('añoConstruccion').value,
+            observaciones: document.getElementById('observaciones').value
+        };
+    }
+
+    // Exportar CSV
+    document.getElementById('exportCsv').addEventListener('click', () => {
+        const data = gatherData();
+        const keys = Object.keys(data);
+        // Función para limpiar valores y encerrar en comillas (importante para Excel)
+        const escapeCsv = val => '"' + String(val || '').replace(/"/g, '""').replace(/\n/g, ' ') + '"';
+        
+        const header = keys.join(',');
+        const values = keys.map(k => escapeCsv(data[k]));
+        
+        const csv = header + "\n" + values.join(',');
+        
+        const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); 
+        a.href = url; 
+        a.download = 'Orden_Trabajo_' + data.clave + '.csv'; 
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    // Generar QR
+    document.getElementById('generateQr').addEventListener('click', () => {
+        const data = gatherData();
+        const qrContainer = document.getElementById('qrcode');
+        
+        // Limpia cualquier QR anterior
+        qrContainer.innerHTML = '';
+        
+        // Datos clave a codificar en un formato simple
+        const qrDataString = `Clave:${data.clave}|Folio:${data.folio}|Lat:${data.lat}|Lon:${data.lon}|Fecha:${data.fecha}`;
+        
+        if (!data.clave && !data.lat) {
+            qrContainer.innerHTML = 'Faltan datos (Clave/Lat/Lon).';
+            return;
+        }
+
+        try {
+            const typeNumber = 0; // Tamaño automático
+            const errorCorrectionLevel = 'L'; // Nivel de corrección bajo
+
+            const qr = qrcode(typeNumber, errorCorrectionLevel);
+            qr.addData(qrDataString);
+            qr.make();
+
+            // Crea la imagen SVG (más limpio para impresión)
+            const img = document.createElement('img');
+            img.src = qr.createDataURL(6, 0); // 6: tamaño del módulo, 0: margen
+            img.style.width = '100%';
+            img.style.height = '100%';
+            
+            qrContainer.appendChild(img);
+        } catch(e) {
+            qrContainer.innerHTML = 'Error al generar QR.';
+            console.error(e);
+        }
+    });
+
+    // 2. LÓGICA DE MAPA Y FECHA (Reutilizado de la versión anterior)
+
+    // Establece la fecha actual automáticamente
+    document.getElementById('fecha').value = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
+    // Inicialización y lógica del mapa
+    const map = L.map('map').setView([19.29, -98.98], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '©️ OSM' }).addTo(map);
+    let marker = null;
+
+    function setCoords(lat, lon){
+        document.getElementById('lat').value = parseFloat(lat).toFixed(6);
+        document.getElementById('lon').value = parseFloat(lon).toFixed(6);
+    }
+    
+    function placeMarker(lat, lon){
+        if(marker) { map.removeLayer(marker); }
+        marker = L.marker([lat, lon], {draggable:true}).addTo(map);
+        marker.on('dragend', e => {
+            const p = e.target.getLatLng();
+            setCoords(p.lat, p.lng);
+        });
+        setCoords(lat, lon);
+        map.setView([lat, lon], 17);
+    }
+
+    map.on('click', function(e){ placeMarker(e.latlng.lat, e.latlng.lng); });
+
+    document.getElementById('useLocation').addEventListener('click', () => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                placeMarker(pos.coords.latitude, pos.coords.longitude);
+            }, err => alert('No se pudo obtener la ubicación: ' + (err.message || err.code)));
+        } else alert('Geolocalización no disponible.');
+    });
+
+    document.getElementById('clearMarker').addEventListener('click', () => {
+        if(marker){ map.removeLayer(marker); marker = null; }
+        document.getElementById('lat').value = '';
+        document.getElementById('lon').value = '';
+    });
+
+    function updateMarkerFromInputs(){
+        const la = parseFloat(document.getElementById('lat').value);
+        const lo = parseFloat(document.getElementById('lon').value);
+        if(!isNaN(la) && !isNaN(lo) && la>=-90 && la<=90 && lo>=-180 && lo<=180){
+            placeMarker(la, lo);
+        }
+    }
+    document.getElementById('lat').addEventListener('change', updateMarkerFromInputs);
+    document.getElementById('lon').addEventListener('change', updateMarkerFromInputs);
+</script>
+</body>
+</html>
